@@ -1,6 +1,10 @@
 import matplotlib.pyplot as plt
 import io
 
+def plot_raw_sensor_data(sensor_param, formatted_datetime, measureTime, redMeasure, irMeasure):
+
+    return
+
 def plot_signals(dt, measure_freq, red_signal, ir_signal, filtered_red, filtered_ir):
     """Plot the original and filtered signals and return the image as a buffer."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))

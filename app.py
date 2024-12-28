@@ -9,6 +9,9 @@ st.set_page_config(
     layout="wide",
 )
 
+# Global variables to hold the selected sensor parameter
+selected_sensor_param = None
+
 mqtt_manager = MQTTManager(
         broker_address=configs.BROKER_ADDRESS,
         command_topic=configs.COMMAND_TOPIC,

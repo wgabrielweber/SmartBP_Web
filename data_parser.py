@@ -1,9 +1,8 @@
-import pandas as pd
 import numpy as np
 import ast
-from datetime import datetime, timedelta
+from datetime import datetime
 import data_analysis
-import data_manager
+import plots
 
 def parse_message(message, sensor_param):
     """Parse the incoming message and store it in the dictionary based on sensor parameters."""
@@ -19,15 +18,13 @@ def parse_message(message, sensor_param):
         dt = datetime.fromtimestamp(int(timestamp))
         formatted_datetime = dt.strftime("%d/%m/%Y %H:%M:%S")
         measureTime = int(measureTime) / 1000
-
-        # Call data manager function to handle the dictionary 
-        data_manager.append_new_measure(sensor_param, formatted_datetime, measureTime, red_measure, ir_measure)
+        measureFrequency = len(redMeasure) / measureTime
 
         # Call analysis functions here with the parsed data
-        data_analysis.analyze_data(formatted_datetime, measureTime, redMeasure, irMeasure)
+        data_analysis.filter_signals(sensor_param, formatted_datetime, measureTime, measureFrequency, redMeasure, irMeasure)
 
         # Calling plot functions to plot data
-        plots.plot_raw_sensor_data()
+        plots.plot_raw_sensor_data(sensor_param, formatted_datetime, measureFrequency, redMeasure, irMeasure)
     
     except Exception as e:
         print(f"Failed to parse message: {e}")
