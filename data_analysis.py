@@ -7,15 +7,25 @@ import data_manager
 def filter_signals(sensor_param, formatted_datetime, measureTime, measureFrequency, redMeasure, irMeasure):
     """
     Perform filtering and signal quality analysis on the parsed data.
-    Call the dictionary appender if kurtosis conditions are met.
+
+    Parameters:
+    - sensor_param (str): Sensor identifier.
+    - formatted_datetime (str): Datetime string for the measurement.
+    - measureTime (float): Measurement duration in seconds.
+    - measureFrequency (float): Sampling frequency in Hz.
+    - redMeasure (list): Unfiltered red signal values.
+    - irMeasure (list): Unfiltered infrared signal values.
+
+    Returns:
+    None. Appends filtered and analyzed data to the data manager if kurtosis conditions are met.
     """
     # Apply Chebyshev and Moving Average filters to the red and IR signals
     try:
         # Apply filters
-        red_movavg_filt = apply_chebyshev_filter(measureFrequency, redMeasure)
-        ir_movavg_filt = apply_chebyshev_filter(measureFrequency, irMeasure)
-        red_cheby_filt = moving_average_filter(redMeasure, 10)
-        ir_cheby_filt = moving_average_filter(irMeasure, 10)
+        red_movavg_filt = moving_average_filter(redMeasure, 10)
+        ir_movavg_filt = moving_average_filter(irMeasure, 10)
+        red_cheby_filt = chebyshev_filter(measureFrequency, redMeasure)
+        ir_cheby_filt = chebyshev_filter(measureFrequency, irMeasure)
     except Exception as e:
         logging.error(f"Filtering error: {e}")
         return
@@ -64,14 +74,14 @@ def moving_average_filter(signal, window_size):
     """Apply a simple moving average filter to the signal."""
     return np.convolve(signal, np.ones(window_size) / window_size, mode='valid')
 
-def chebyshev_filter(fs, lowcut=0.01, highcut=15.0):
+def chebyshev_filter_design(fs, lowcut=0.01, highcut=15.0):
     """Design a Chebyshev-II bandpass filter."""
     nyquist = 0.5 * fs
     low = lowcut / nyquist
     high = highcut / nyquist
     return cheby2(4, 40, [low, high], btype='bandpass')
 
-def apply_chebyshev_filter(fs, signal):
+def chebyshev_filter(fs, signal):
     """Apply the Chebyshev II bandpass filter to the signal."""
-    b, a = chebyshev_filter(fs)
+    b, a = chebyshev_filter_design(fs)
     return filtfilt(b, a, signal)
