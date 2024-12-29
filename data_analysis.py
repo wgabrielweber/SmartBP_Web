@@ -29,11 +29,13 @@ def filter_signals(sensor_param, formatted_datetime, measureTime, measureFrequen
     # Calculate SQI
     sqi = calculateSQI(redMeasure, irMeasure, red_movavg_filt, ir_movavg_filt, red_cheby_filt, ir_cheby_filt)
 
+    print(f'Red Signal Kurtosis: {sqi["red_cheby_kurt"]}, IR Signal Kurtosis: {sqi["ir_cheby_kurt"]}')
+
     # Check kurtosis values
-    if sqi["red_cheby_kurt"] > 4 and sqi["ir_cheby_kurt"] > 4:
+    if -2 < sqi["red_cheby_kurt"] < 5 and -2 < sqi["ir_cheby_kurt"] < 5:
         # Append to dictionary
         try:
-            data_manager.append_to_dictionary(
+            data_manager.append_new_measure(
                 sensor_param, formatted_datetime, measureTime, measureFrequency, signals, sqi
             )
         except Exception as e:
