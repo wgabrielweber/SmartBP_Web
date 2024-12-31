@@ -1,7 +1,6 @@
 import os
 import json
 import streamlit as st
-from app_functions import select_measure_box
 from configs import SENSOR_PARAMETERS, MEASURE_LOGGER, SQI_MEDIAN_LOGGER, UNDEFINED_PARAMS
 
 def log_measure(new_data):
@@ -17,6 +16,7 @@ def log_measure(new_data):
                     sensor_data = json.load(file)
             except (FileNotFoundError, json.JSONDecodeError):
                 # If the file doesn't exist or is empty, initialize an empty dictionary
+                print("File not found. Creating new file.")
                 sensor_data = {}
 
             # Add each new measure as a uniquely indexed key
@@ -28,9 +28,6 @@ def log_measure(new_data):
             with open(file_path, 'w') as file:
                 json.dump(sensor_data, file, indent=4)
             print(f"New measure successfully saved to {file_path}.")         
-            # Load existing measures to update the select measures box
-            measures = load_measures(file_path)
-            select_measure_box(measures)
     
     except Exception as e:
         print(f"Failed to save measure: {e}")
