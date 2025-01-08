@@ -1,7 +1,7 @@
 import io
 import matplotlib.pyplot as plt
 import numpy as np
-from data_analysis import filter_signal, peak_finder, peak_finder, ppg_heart_beats, ppg_sqa, ppg_process,normalize_signal
+from data_analysis import filter_signal, peak_finder, peak_finder, ppg_heart_beats, ppg_sqa, ppg_process, calculate_avg_beat, normalize_signal
 
 def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas=None, linewidths=None, peaks=None, qualities=None):
     """
@@ -280,8 +280,10 @@ def plot_beats(measure):
     ir_peaks = ir_peaks_dict["PPG_Peaks"]
     ir_beats = ppg_heart_beats(ir_clean, ir_peaks, sampling_rate)
 
+    average_signal_df = calculate_avg_beat(ir_beats)
+
     # Initialize the plot
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 5))
 
     # Loop through each beat in the dictionary and plot its signal
     for beat_index, beat_info in ir_beats.items():
@@ -290,13 +292,19 @@ def plot_beats(measure):
         signal_data = beat_info['Signal']  # Signal values for the y-axis
 
         # Plot each beat with a distinct label
-        ax.plot(time_data, signal_data, alpha=0.7, color='silver')
+        ax.plot(time_data, signal_data, linewidth = 0.75, alpha=0.85, color='silver')
+    
+    # Plot average beat
+    ax.plot(average_signal_df["Time"], average_signal_df["Average Signal"],linewidth=6, alpha=0.75, label="Average Signal", color="royalblue")
+
+    # Add a vertical dotted line at time = 0
+    ax.axvline(x=0, color='dimgrey', linestyle='--', linewidth=1.25)
 
     # Configure plot appearance
     ax.set_title(f"Processed Beats - IR Only")
     ax.set_xlabel('Time (s)')  # Assuming each beat data is indexed by time
     ax.set_ylabel('PPG Value')
-    ax.grid(True)
+    ax.grid(False)
     ax.legend(loc='upper right')
 
     # Save the figure to a buffer (in-memory image)
