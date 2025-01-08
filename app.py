@@ -4,7 +4,7 @@ import logging
 from mqtt_manager import MQTTManager
 from data_manager import convert_signals_to_lists
 from data_logger import load_measures
-from app_functions import select_measure_box, selectPlotType, delete_measure_bt, cssStyling
+from app_functions import select_box_sensor_params, pills_measure_type, pills_sensor_params, select_box_measure, selectPlotType, delete_measure_bt, cssStyling
 import configs
 
 # Suppress Streamlit warnings by setting log level
@@ -51,21 +51,14 @@ def main():
         st.title("SmartBP Web App 🩺")
         st.subheader("Manage your SmartBP measurements seamlessly.")
 
-    # Sensor parameter selection
-    with st.container():
-        st.header("Sensor Parameterization")
+    # Sensor Parameterization Container
+    with st.container():   
+        st.header("Sensor Parameterization and Measure Request")
 
-        col1, col2, col3 = st.columns([1, 1, 1])
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
         with col1:
-            # Select sensor parameters
-            sensor_parameters = [
-                "Default",
-                "800 Hz - 4 samples",
-                "1000 Hz - 8 samples",
-                "1600 Hz - 8 samples",
-                "1600 Hz - 16 samples",
-            ]
-            selected_param = st.selectbox("Select Sensor Parameters", sensor_parameters)
+            # Select box to select the sensor parameters
+            selected_param =select_box_sensor_params()           
             mqtt.update_sensor_param(selected_param)
 
         with col2:
@@ -77,10 +70,12 @@ def main():
         with col3:
             # Select array size
             set_array_size = ["500", "750", "1000", "1250"]
-            selected_array_size = st.selectbox("Set Measure Sample Number", set_array_size)
+            selected_array_size = st.selectbox("Set the number of samples per measure", set_array_size)
             mqtt.update_array_size(selected_array_size)
+        with col4:
+            st.empty()
 
-    # Request Measure button with selected parameters info
+    # Measurement Request Container
     with st.container():
         st.header("Request a Measure")
 
@@ -92,31 +87,44 @@ def main():
         # Request new measure button
         request_new_measure_button()
 
-    # Third container: Measurement visualization
+    # Measurement Visualization Container
     with st.container():
         st.header("Measurement Visualization")
 
         # Load existing measures
-        file_path = configs.SENSOR_PARAMETERS[selected_param]
-        measures = load_measures(file_path)
+        file_path = configs.MEASURE_LOGGER
+        file = load_measures(file_path)
 
         # Measure selection and deletion
-        col1, col2 = st.columns([1, 4])  # Wider column for measure selection
+        col1, col2, col3, col4 = st.columns([1, 2, 1, 4])  # Wider column for measure selection
         with col1:
-            selected_measure = select_measure_box(measures)
+            measureType = pills_measure_type()
 
         with col2:
-            delete_measure_bt(selected_measure, measures, file_path)
+            measures = pills_sensor_params(file)
 
-        # Check if selected_measure exists (i.e., it's not None or an empty value)
-        if selected_measure:
-            # Parse the signals strings to lists
-            measureForPlot = convert_signals_to_lists(selected_measure)
+        with col3:
+            selected_measure = select_box_measure(measures, measureType)
 
-            # Plot visualization
-            plot_buf = selectPlotType(measureForPlot)
-            if plot_buf:
-                st.image(plot_buf, use_container_width=True)
+        with col4:
+            delete_measure_bt(measures ,selected_measure, measures, file_path)
+
+        with st.container():
+            col1, col2 = st.columns([1, 6])
+            with col1:
+                # Check if selected_measure exists (i.e., it's not None or an empty value)
+                if selected_measure:
+                    # Parse the signals strings to lists
+                    measureForPlot = convert_signals_to_lists(selected_measure)
+
+                    # Plot visualization
+                    plot_buf = selectPlotType(measureForPlot)
+
+            with col2:
+                st.empty()
+
+        if plot_buf:
+            st.image(plot_buf, use_container_width=True)
 
     # Placeholder for any dynamic updates or waiting states
     st.empty()

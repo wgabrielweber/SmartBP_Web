@@ -47,14 +47,17 @@ def parse_message(message):
             raise ValueError("Unexpected number of parts in the message")
 
         # Convert measurements to numpy arrays and adjust polarity
-        red_measure = np.array(red_measure) * -1 if red_measure else np.array([])
-        ir_measure = np.array(ir_measure) * -1 if ir_measure else np.array([])
-
+        ir_measure = np.array(ir_measure) * -1
+        if len(red_measure) > 0:
+            red_measure = np.array(red_measure) * -1
+        else:
+            red_measure = np.array([])
+        
         # Format timestamp
         dt = datetime.fromtimestamp(int(timestamp))
         formatted_datetime = dt.strftime("%d/%m/%Y %H:%M:%S")
         measure_time = int(measure_time) / 1000
-        measure_frequency = len(red_measure or ir_measure) / measure_time
+        measure_frequency = len(ir_measure) / measure_time
 
         # Call analysis functions with the parsed data
         data_manager.append_new_measure(

@@ -1,8 +1,23 @@
 import io
 import matplotlib.pyplot as plt
+import numpy as np
+from data_analysis import filter_signal, peak_finder, peak_finder, ppg_heart_beats, ppg_sqa, ppg_process,normalize_signal
 
-def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas=None, linewidths=None):
-    """Generic function to plot signals and return the image as a buffer."""
+def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas=None, linewidths=None, peaks=None, qualities=None):
+    """
+    Generic function to plot signals with optional peaks and quality indicators.
+
+    Args:
+        measure (dict): Dictionary containing measurement metadata.
+        signals_to_plot (list of arrays): Signals to plot.
+        title (str): Title of the plot.
+        labels (list of str): Labels for the signals.
+        colors (list of str): Colors for the signals.
+        alphas (list of float, optional): Transparency for the signals.
+        linewidths (list of float, optional): Line widths for the signals.
+        peaks (list of arrays, optional): Peaks to mark on the signals.
+        qualities (list of arrays, optional): Quality metrics for the signals.
+    """
     # Extract the timestamp and measurement frequency
     dt = measure.get("timestamp", "Unknown Timestamp")
     measure_freq = measure.get("measureFrequency", 0)
@@ -15,6 +30,14 @@ def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas
         alpha = alphas[i] if alphas else 1.0
         linewidth = linewidths[i] if linewidths else 1.0
         ax.plot(signal, label=labels[i], color=colors[i], alpha=alpha, linewidth=linewidth)
+
+        # Plot peaks if provided
+        if peaks and peaks[i] is not None:
+            ax.plot(peaks[i], signal[peaks[i]], 'o', label=f"{labels[i]} Peaks", color='orange', alpha=0.8)
+
+        # Plot quality indicators if provided
+        if qualities and qualities[i] is not None:
+            ax.plot(qualities[i], label=f"{labels[i]} Quality", color='green', alpha=0.8)
 
     # Add the measure frequency as an invisible label for context
     ax.plot([], label=f'Measure Frequency: {measure_freq:.2f} Hz', color='white')
@@ -36,158 +59,252 @@ def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas
 
     return buf  # Return the buffer object
 
-def plotRawData(measure):
+def plotRawSignals(measure):
     """Plot the raw signals from the measure dictionary."""
-    signals = measure.get("signals", {})
-    red_signal = signals.get("redMeasure", [])
-    ir_signal = signals.get("irMeasure", [])
+    red_signal = measure.get("RedSignal", [])
+    ir_signal = measure.get("IrSignal", [])
 
-    if not red_signal or not ir_signal:
-        raise ValueError("Missing necessary signal data in the measure.")
+    # Get the measure type
+    measure_type = measure.get("measureType", "")
 
-    labels = ['Original Red Signal', 'Original IR Signal']
-    colors = ['#ff2c2c', '#1282b2']
-    return plot_signals_generic(measure, [red_signal, ir_signal], "Original Signals", labels, colors)
-
-def plotFilteredDataCheby(measure):
-    """Plot the filtered signals from the measure dictionary."""
-    signals = measure.get("signals", {})
-    sqi = measure.get("sqi", {})
+    # Determine which signals to plot based on the measure type
+    if measure_type == "IR Only":
+        if not ir_signal:
+            raise ValueError("Missing necessary IR signal data in the measure.")
+        signals = [ir_signal]
+        labels = ['Original IR Signal']
+        colors = ['#1282b2']
+    elif measure_type == "Red + IR":
+        if not red_signal or not ir_signal:
+            raise ValueError("Missing necessary signal data for Red + IR in the measure.")
+        signals = [red_signal, ir_signal]
+        labels = ['Original Red Signal', 'Original IR Signal']
+        colors = ['#ff2c2c', '#1282b2']
+    else:
+        raise ValueError(f"Unknown measure type: {measure_type}")
     
-    red_signal = signals.get("redFilteredCheby", [])
-    ir_signal = signals.get("irFilteredCheby", [])
+    # Pass the Parameters to the plotting function
+    return plot_signals_generic(measure, signals, "Original Signals", labels, colors)
 
-    red_sqi = sqi.get("red_cheby_skew", 0)
-    ir_sqi = sqi.get("ir_cheby_skew", 0)
+def plotCleanedSignals(measure):
+    """Plot the cleaned signals from the measure dictionary."""
+    red_signal = measure.get("RedSignal", [])
+    ir_signal = measure.get("IrSignal", [])
+    sampling_rate = measure.get("measureFrequency", 0)
 
-    if not red_signal or not ir_signal:
-        raise ValueError("Missing necessary signal data in the measure.")
+    # Get the measure type
+    measure_type = measure.get("measureType", "")
 
-    labels = [
-        f'Filtered Red Signal: SQI {red_sqi:.3f}', 
-        f'Filtered IR Signal: SQI {ir_sqi:.3f}'
-    ]
-    colors = ['#ff2c2c', '#1282b2']
-    return plot_signals_generic(measure, [red_signal, ir_signal], "Filtered Signals [Chebyshev II]", labels, colors)
-
-def plotRawAndFilteredDataCheby(measure):
-    """Plot the raw and filtered signals for comparison."""
-    signals = measure.get("signals", {})
-    sqi = measure.get("sqi", {})
+    # Determine which signals to plot based on the measure type
+    if measure_type == "IR Only":
+        if not ir_signal:
+            raise ValueError("Missing necessary IR signal data in the measure.")
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        signals = [ir_cleaned]
+        labels = ['Filtered IR Signal']
+        colors = ['#1282b2']
+    elif measure_type == "Red + IR":
+        if not red_signal or not ir_signal:
+            raise ValueError("Missing necessary signal data for Red + IR in the measure.")
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        red_cleaned = filter_signal(red_signal, sampling_rate)
+        signals = [red_cleaned, ir_cleaned]
+        labels = ['Filtered Red Signal', 'Filtered IR Signal']
+        colors = ['#ff2c2c', '#1282b2']
+    else:
+        raise ValueError(f"Unknown measure type: {measure_type}")
     
-    red_signal = signals.get("redMeasure", [])
-    ir_signal = signals.get("irMeasure", [])
-    red_cheby_signal = signals.get("redFilteredCheby", [])
-    ir_cheby_signal = signals.get("irFilteredCheby", [])
+    # Pass the Parameters to the plotting function
+    return plot_signals_generic(measure, signals, "Filtered Signals", labels, colors)
 
-    red_cheby_sqi = sqi.get("red_cheby_skew", 0)
-    ir_cheby_sqi = sqi.get("ir_cheby_skew", 0)
+def plotSignalsPeaks(measure):
+    """Plot the cleaned signals with detected peaks from the measure dictionary."""
+    red_signal = measure.get("RedSignal", [])
+    ir_signal = measure.get("IrSignal", [])
+    sampling_rate = measure.get("measureFrequency", 0)
 
-    if not red_cheby_signal or not ir_cheby_signal:
-        raise ValueError("Missing necessary signal data in the measure.")
+    # Get the measure type
+    measure_type = measure.get("measureType", "")
 
-    labels = [
-        'Original Red Signal', 
-        'Original IR Signal', 
-        f'Filtered Red Signal [Cheby II]: SQI {red_cheby_sqi:.3f}', 
-        f'Filtered IR Signal [Cheby II]: SQI {ir_cheby_sqi:.3f}',
-    ]
-    colors = ['#ff2c2c', '#2596be', '#ff2c2c', '#2596be', '#f28822', '#1db280']
-    alphas = [0.75, 0.75, 1.0, 1.0]
-    linewidths = [0.5, 0.5, 1.0, 1.0]
-    
-    signals_to_plot = [
-        red_signal, ir_signal, 
-        red_cheby_signal, ir_cheby_signal, 
-    ]
-    return plot_signals_generic(measure, signals_to_plot, "Raw and Filtered Signals Comparison [Chebyshev II]", labels, colors, alphas, linewidths)
+    # Initialize signals and peaks
+    signals, labels, colors, peaks, = [], [], [], []
 
-def plotFilteredDataMAF(measure):
-    """Plot the filtered signals from the measure dictionary."""
-    signals = measure.get("signals", {})
-    sqi = measure.get("sqi", {})
-    
-    red_signal = signals.get("redFilteredMA", [])
-    ir_signal = signals.get("irFilteredMA", [])
+    # Process signals based on the measure type
+    if measure_type == "IR Only":
+        if not ir_signal:
+            raise ValueError("Missing necessary IR signal data in the measure.")
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        ir_peaks_dict = peak_finder(ir_cleaned, sampling_rate)
+        ir_peaks = ir_peaks_dict["PPG_Peaks"]
+        signals.append(ir_cleaned)
+        labels.append("Filtered IR Signal")
+        colors.append("#1282b2")
+        peaks.append(ir_peaks)
+    elif measure_type == "Red + IR":
+        if not red_signal or not ir_signal:
+            raise ValueError("Missing necessary signal data for Red + IR in the measure.")
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        ir_peaks_dict = peak_finder(ir_cleaned, sampling_rate)
+        ir_peaks = ir_peaks_dict["PPG_Peaks"]
+        red_cleaned = filter_signal(red_signal, sampling_rate)
+        red_peaks_dict = peak_finder(red_cleaned, sampling_rate)
+        red_peaks = red_peaks_dict["PPG_Peaks"]
 
-    red_sqi = sqi.get("red_movavg_skew", 0)
-    ir_sqi = sqi.get("ir_movavg_skew", 0)
+        signals.extend([red_cleaned, ir_cleaned])
+        labels.extend(["Filtered Red Signal", "Filtered IR Signal"])
+        colors.extend(["#ff2c2c", "#1282b2"])
+        peaks.extend([red_peaks, ir_peaks])
+    else:
+        raise ValueError(f"Unknown measure type: {measure_type}")
 
-    if not red_signal or not ir_signal:
-        raise ValueError("Missing necessary signal data in the measure.")
+    # Pass the Parameters to the plotting function
+    return plot_signals_generic(measure, signals, "Cleaned Signals Peaks", labels, colors, peaks=peaks)
 
-    labels = [
-        f'Filtered Red Signal: SQI {red_sqi:.3f}', 
-        f'Filtered IR Signal: SQI {ir_sqi:.3f}'
-    ]
-    colors = ['#ff2c2c', '#1282b2']
-    return plot_signals_generic(measure, [red_signal, ir_signal], "Filtered Signals [MAF]", labels, colors)
+def plotSQA(measure):
+    """Plot the cleaned signals with detected peaks from the measure dictionary."""
+    red_signal = measure.get("RedSignal", [])
+    ir_signal = measure.get("IrSignal", [])
+    sampling_rate = measure.get("measureFrequency", 0)
 
-def plotRawAndFilteredDataMAF(measure):
-    """Plot the raw and filtered signals for comparison."""
-    signals = measure.get("signals", {})
-    sqi = measure.get("sqi", {})
-    
-    red_signal = signals.get("redMeasure", [])
-    ir_signal = signals.get("irMeasure", [])
-    red_movavg_signal = signals.get("redFilteredMA", [])
-    ir_movavg_signal = signals.get("irFilteredMA", [])
+    # Get the measure type
+    measure_type = measure.get("measureType", "")
 
-    red_movavg_sqi = sqi.get("red_movavg_skew", 0)
-    ir_movavg_sqi = sqi.get("ir_movavg_skew", 0)
+    # Initialize signals and peaks
+    signals, labels, colors, peaks, qualities = [], [], [], [], []
 
-    if not red_signal or not ir_signal:
-        raise ValueError("Missing necessary signal data in the measure.")
+    # Process signals based on the measure type
+    if measure_type == "IR Only":
+        if not ir_signal:
+            raise ValueError("Missing necessary IR signal data in the measure.")
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        ir_peaks_dict = peak_finder(ir_cleaned, sampling_rate)
+        ir_peaks = ir_peaks_dict["PPG_Peaks"]
+        ir_quality = ppg_sqa(ir_cleaned, ir_peaks, sampling_rate)
+        
+        signals.append(normalize_signal(ir_cleaned))
+        labels.append("Filtered IR Signal")
+        colors.append("#1282b2")
+        peaks.append(ir_peaks)
+        qualities.append(ir_quality)
+    elif measure_type == "Red + IR":
+        if not red_signal or not ir_signal:
+            raise ValueError("Missing necessary signal data for Red + IR in the measure.")
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        ir_peaks_dict = peak_finder(ir_cleaned, sampling_rate)
+        ir_peaks = ir_peaks_dict["PPG_Peaks"]
+        ir_quality = ppg_sqa(ir_cleaned, ir_peaks, sampling_rate)
 
-    labels = [
-        'Original Red Signal', 
-        'Original IR Signal', 
-        f'Filtered Red Signal [Mov Avg]: SQI {red_movavg_sqi:.3f}', 
-        f'Filtered IR Signal [Mov Avg]: SQI {ir_movavg_sqi:.3f}'
-    ]
-    colors = ['#ff2c2c', '#2596be', '#ff2c2c', '#2596be']
-    alphas = [0.75, 0.75, 1.0, 1.0]
-    linewidths = [0.5, 0.5, 1.0, 1.0]
-    
-    signals_to_plot = [
-        red_signal, ir_signal, 
-        red_movavg_signal, ir_movavg_signal
-    ]
-    return plot_signals_generic(measure, signals_to_plot, "Raw and Filtered Signals Comparison [MAF]", labels, colors, alphas, linewidths)
+        red_cleaned = filter_signal(red_signal, sampling_rate)
+        red_peaks_dict = peak_finder(red_cleaned, sampling_rate)
+        red_peaks = red_peaks_dict["PPG_Peaks"]
+        red_quality = ppg_sqa(red_cleaned, red_peaks, sampling_rate)
 
-def plotFilteredDataComparison(measure):
-    """Plot the raw and filtered signals for comparison."""
-    signals = measure.get("signals", {})
-    sqi = measure.get("sqi", {})
-    
-    red_cheby_signal = signals.get("redFilteredCheby", [])
-    ir_cheby_signal = signals.get("irFilteredCheby", [])
-    red_movavg_signal = signals.get("redFilteredMA", [])
-    ir_movavg_signal = signals.get("irFilteredMA", [])
+        signals.extend([normalize_signal(red_cleaned), normalize_signal(ir_cleaned)])
+        labels.extend(["Filtered Red Signal", "Filtered IR Signal"])
+        colors.extend(["#ff2c2c", "#1282b2"])
+        peaks.extend([red_peaks, ir_peaks])
+        qualities.extend([red_quality, ir_quality])
+    else:
+        raise ValueError(f"Unknown measure type: {measure_type}")
 
-    red_movavg_sqi = sqi.get("red_movavg_skew", 0)
-    ir_movavg_sqi = sqi.get("ir_movavg_skew", 0)
-    red_cheby_sqi = sqi.get("red_cheby_skew", 0)
-    ir_cheby_sqi = sqi.get("ir_cheby_skew", 0)
+    # Pass the Parameters to the plotting function
+    return plot_signals_generic(measure, signals, "Cleaned Signals Peaks", labels, colors, peaks=peaks, qualities= qualities)
 
-    if not red_cheby_signal or not ir_cheby_signal:
-        raise ValueError("Missing necessary signal data in the measure.")
+def plot_ppg_process(measure):
+    """Plot the processed signals with detected peaks from the measure dictionary."""
+    red_signal = measure.get("RedSignal", [])
+    ir_signal = measure.get("IrSignal", [])
+    sampling_rate = measure.get("measureFrequency", 0)
 
-    labels = [
-        f'Filtered Red Signal [Cheby II]: SQI {red_cheby_sqi:.3f}', 
-        f'Filtered IR Signal [Cheby II]: SQI {ir_cheby_sqi:.3f}',
-        f'Filtered Red Signal [Mov Avg]: SQI {red_movavg_sqi:.3f}', 
-        f'Filtered IR Signal [Mov Avg]: SQI {ir_movavg_sqi:.3f}'
-    ]
-    colors = ['#ff2c2c', '#2596be', '#990000', '#003399']
-    alphas = [0.75, 0.75, 0.75, 0.75]
-    linewidths = [1.0, 1.0, 1.0, 1.0]
-    
-    signals_to_plot = [
-        red_cheby_signal, ir_cheby_signal, 
-        red_movavg_signal, ir_movavg_signal
-    ]
-    return plot_signals_generic(measure, signals_to_plot, "Filtered Signals Comparison", labels, colors, alphas, linewidths)
+    # Get the measure type
+    measure_type = measure.get("measureType", "")
 
-def plotFFT():
-    return None
+    ir_signals, ir_info = ppg_process(ir_signal, sampling_rate)
+
+    # Initialize signals and peaks
+    signals, labels, colors, peaks, qualities = [], [], [], [], []
+
+    # Process signals based on the measure type
+    if measure_type == "IR Only":
+        if not ir_signal:
+            raise ValueError("Missing necessary IR signal data in the measure.")
+        # Process signal
+        ir_signals, ir_info = ppg_process(ir_signal, sampling_rate)
+
+        # Extract processed signals
+        ir_cleaned = ir_signals["PPG_Clean"]
+        ir_peaks = ir_info["PPG_Peaks"]
+        ir_rate = np.median(np.array(ir_signals["PPG_Rate"]))
+        ir_quality = ir_signals["PPG_Quality"]
+
+        signals.append(normalize_signal(ir_cleaned))
+        labels.append("Filtered IR Signal")
+        colors.append("#1282b2")
+        peaks.append(ir_peaks)
+    elif measure_type == "Red + IR":
+        if not red_signal or not ir_signal:
+            raise ValueError("Missing necessary signal data for Red + IR in the measure.")
+        # Process signals
+        ir_signals, ir_info = ppg_process(ir_signal, sampling_rate)
+        red_signals, red_info = ppg_process(red_signal, sampling_rate)
+
+        ir_cleaned = filter_signal(ir_signal, sampling_rate)
+        ir_peaks_dict = peak_finder(ir_cleaned, sampling_rate)
+        ir_peaks = ir_peaks_dict["PPG_Peaks"]
+        ir_quality = ppg_sqa(ir_cleaned, ir_peaks, sampling_rate)
+
+        red_cleaned = filter_signal(red_signal, sampling_rate)
+        red_peaks_dict = peak_finder(red_cleaned, sampling_rate)
+        red_peaks = red_peaks_dict["PPG_Peaks"]
+        red_quality = ppg_sqa(red_cleaned, red_peaks, sampling_rate)
+
+        signals.extend([normalize_signal(red_cleaned), normalize_signal(ir_cleaned)])
+        labels.extend(["Filtered Red Signal", "Filtered IR Signal"])
+        colors.extend(["#ff2c2c", "#1282b2"])
+        peaks.extend([red_peaks, ir_peaks])
+        qualities.extend([red_quality, ir_quality])
+    else:
+        raise ValueError(f"Unknown measure type: {measure_type}")
+
+    # Pass the Parameters to the plotting function
+    return plot_signals_generic(measure, signals, "Cleaned Signals Peaks", labels, colors, peaks=peaks, qualities= qualities)
+
+def plot_beats(measure):
+    """Plot the processed signals with detected peaks from the measure dictionary."""
+    ir_signal = measure.get("IrSignal", [])
+    sampling_rate = measure.get("measureFrequency", 0)
+
+    # Clean the signal and extract its beats
+    ir_clean = filter_signal(ir_signal, sampling_rate)
+    ir_peaks_dict = peak_finder(ir_clean, sampling_rate)
+    ir_peaks = ir_peaks_dict["PPG_Peaks"]
+    ir_beats = ppg_heart_beats(ir_clean, ir_peaks, sampling_rate)
+
+    # Initialize the plot
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # Loop through each beat in the dictionary and plot its signal
+    for beat_index, beat_info in ir_beats.items():
+        # Get the time data (index of the sub-dictionary)
+        time_data = beat_info.index  # Index represents time
+        signal_data = beat_info['Signal']  # Signal values for the y-axis
+
+        # Plot each beat with a distinct label
+        ax.plot(time_data, signal_data, alpha=0.7, color='silver')
+
+    # Configure plot appearance
+    ax.set_title(f"Processed Beats - IR Only")
+    ax.set_xlabel('Time (s)')  # Assuming each beat data is indexed by time
+    ax.set_ylabel('PPG Value')
+    ax.grid(True)
+    ax.legend(loc='upper right')
+
+    # Save the figure to a buffer (in-memory image)
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)  # Rewind the buffer to the beginning
+
+    # Close the figure to free up memory
+    plt.close(fig)
+
+    return buf  # Return the buffer object

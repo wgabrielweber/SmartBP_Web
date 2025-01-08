@@ -24,10 +24,16 @@ def ppg_sqa(ppg_cleaned, ppg_pw_peaks, sampling_rate):
     Return a vector containing the quality index ranging from 0 to 1 for "templatematch" method,
     or an unbounded value (where 0 indicates high quality) for "disimilarity" method.
     """
-    nk.ppg_quality(ppg_cleaned, ppg_pw_peaks, sampling_rate, method='templatematch', approach=None)
+    quality = nk.ppg_quality(ppg_cleaned, ppg_pw_peaks, sampling_rate, method='disimilarity', approach=None)
+    return quality
 
-
-
+def ppg_process(ppg, sampling_rate):
+    """
+    Return for signals: dataframe with PPG_Raw, PPG_Clean, PPG_Rate, PPG_Peaks
+    Return for info: dictionary containing the information of peaks and the signals sampling rate 
+    """
+    signals, info = nk.ppg_process(ppg, sampling_rate)
+    return signals, info
 
 ########## CUSTOM FUNCTIONS ##########
 def fourier_bandpass_filter(signal, fs, low_cutoff=0.1, high_cutoff=10):
@@ -50,3 +56,19 @@ def fourier_bandpass_filter(signal, fs, low_cutoff=0.1, high_cutoff=10):
     
     # Inverse FFT to get the filtered signal
     return np.fft.ifft(fft_signal).real
+
+def normalize_signal(signal, range_min=0, range_max=1):
+    """Normalize the input data to a specified range."""
+    signal = np.array(signal)  # Ensure input is a numpy array for easier manipulation
+    signal_min = np.min(signal)
+    signal_max = np.max(signal)
+
+    # Avoid division by zero if all values in data are the same
+    if signal_max == signal_min:
+        return np.full_like(signal, range_min)  # Fill with the minimum of the range
+
+    # Normalize to [0, 1] and then scale to the desired range
+    normalized_data = (signal - signal_min) / (signal_max - signal_min)
+    normalized_data = normalized_data * (range_max - range_min) + range_min
+
+    return normalized_data

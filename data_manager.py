@@ -38,9 +38,13 @@ def convert_signals_to_lists(selected_measure):
         updated_measure["IrSignal"] = []  # Default to an empty list if not present
 
     if "RedSignal" in updated_measure:
-        updated_measure["RedSignal"] = list(map(int, updated_measure["RedSignal"].split(",")))
+        if updated_measure["RedSignal"] == "":  # Check if the string is empty
+            updated_measure["RedSignal"] = []   # Set to empty list if it's an empty string
+        else:
+            updated_measure["RedSignal"] = list(map(int, updated_measure["RedSignal"].split(",")))  # Process normally
     else:
         updated_measure["RedSignal"] = []  # Default to an empty list if not present
+
 
     # Return the updated measure with parsed signals
     return updated_measure
