@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
 import json
 from plots import plotRawSignals, plotCleanedSignals, plotSignalsPeaks, plotSQA, plot_ppg_process, plot_beats
 
@@ -191,3 +193,93 @@ def selectPlotType(selected_measure):
         elif selected_plot_type == "Heart Beats":
             plot_buf = plot_beats(selected_measure)
     return plot_buf
+
+def pending_categorization(measures, file_path):
+    # Initialize a list to collect rows for the table
+    table_data = []
+
+    # Extract and organize measures
+    for parameter, measurements in measures.items():
+        for measure_id, measure_data in measurements.items():
+            category = measure_data.get("category", "")  # Get category or empty string
+            table_data.append({
+                "Parameter": parameter,
+                "Measure ID": measure_id,
+                "Timestamp": measure_data.get("timestamp", ""),
+                "Type": measure_data.get("measureType", ""),
+                "Frequency": measure_data.get("measureFrequency", ""),
+                "Category": category
+            })
+    
+    # Convert to a DataFrame for display
+    df = pd.DataFrame(table_data)
+
+    # Show the editable table
+    st.write("Edit the 'Category' column to categorize your measures.")
+    with st.container():
+        col1, col2, col3 = st.columns([1, 3, 1]) 
+        with col1:
+            save_button = st.button("Save Changes")
+            if save_button:
+                st.success("Changes saved successfully!")
+            st.empty()
+        with col2:
+            edited_df = st.data_editor(df, use_container_width=True, hide_index=True)
+
+    # Save changes button
+    if save_button:
+        # Update the JSON file with new categories
+        for index, row in edited_df.iterrows():
+            parameter = row["Parameter"]
+            measure_id = row["Measure ID"]
+            category = row["Category"]
+            measures[parameter][measure_id]["category"] = category
+        
+        # Save the updated measures back to the JSON file
+        with open(file_path, "w") as f:
+            json.dump(measures, f, indent=4)
+
+def categorization_stats(measures):
+    """Display statistics for categorized measures."""
+    # Initialize a dictionary to count measures per category
+    category_counts = {}
+
+    # Loop through all measures to count categories
+    for parameter, measurements in measures.items():
+        for measure_id, measure_data in measurements.items():
+            category = measure_data.get("category", "").strip()
+            if not category:
+                category = "Uncategorized"
+            category_counts[category] = category_counts.get(category, 0) + 1
+
+    # Convert the category counts to a DataFrame for display
+    stats_df = pd.DataFrame.from_dict(
+        category_counts, orient="index", columns=["Count"]
+    ).reset_index()
+    stats_df.rename(columns={"index": "Category"}, inplace=True)
+
+    # Sort the DataFrame by "Count" in descending order
+    stats_df = stats_df.sort_values(by="Count", ascending=False).reset_index(drop=True)
+
+    # Display the table
+    st.write("### Categorization Statistics")
+    st.table(stats_df)
+
+    # Plot a bar chart for the category counts
+    st.write("### Categorization Distribution")
+    with st.container():
+        col1, col2, col3 = st.columns([1, 1, 1]) 
+        with col1:
+            st.bar_chart(stats_df.set_index("Category"), horizontal=True)
+
+        with col2:
+            # Optional: Plot a pie chart for a visual representation
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.pie(
+                stats_df["Count"],
+                labels=stats_df["Category"],
+                autopct="%1.1f%%",
+                startangle=140,
+            )
+            ax.set_title("Categorization Distribution (Pie Chart)")
+            st.pyplot(fig)
