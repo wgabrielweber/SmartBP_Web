@@ -214,8 +214,10 @@ def pending_categorization(measures, file_path):
     # Convert to a DataFrame for display
     df = pd.DataFrame(table_data)
 
+    # Filter rows where "Category" is missing or empty
+    df_filtered = df[df["Category"].astype(str).str.strip() == ""]
+
     # Show the editable table
-    st.write("Edit the 'Category' column to categorize your measures.")
     with st.container():
         col1, col2, col3 = st.columns([1, 3, 1]) 
         with col1:
@@ -224,7 +226,7 @@ def pending_categorization(measures, file_path):
                 st.success("Changes saved successfully!")
             st.empty()
         with col2:
-            edited_df = st.data_editor(df, use_container_width=True, hide_index=True)
+            edited_df = st.data_editor(df_filtered, use_container_width=True, hide_index=True)
 
     # Save changes button
     if save_button:

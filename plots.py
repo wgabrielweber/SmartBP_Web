@@ -22,6 +22,9 @@ def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas
     dt = measure.get("timestamp", "Unknown Timestamp")
     measure_freq = measure.get("measureFrequency", 0)
 
+    # Define colors for the quality indicators
+    quality_colors = ["#32CD32", "#ffa500"]  # Green for one, Orange for another (extend if needed)
+
     # Create the plot
     fig, ax = plt.subplots(figsize=(10, 5))
 
@@ -37,7 +40,8 @@ def plot_signals_generic(measure, signals_to_plot, title, labels, colors, alphas
 
         # Plot quality indicators if provided
         if qualities and qualities[i] is not None:
-            ax.plot(qualities[i], label=f"{labels[i]} Quality", color='green', alpha=0.8)
+            quality_color = quality_colors[i % len(quality_colors)]  # Cycle through colors
+            ax.plot(qualities[i], label=f"{labels[i]} Quality", color=quality_color, alpha=0.8)
 
     # Add the measure frequency as an invisible label for context
     ax.plot([], label=f'Measure Frequency: {measure_freq:.2f} Hz', color='white')
