@@ -1,6 +1,6 @@
 import os
 import json
-from configs import COLLECTION_NAME
+from configs_st import COLLECTION_NAME
 from database_init import db
 
 collection = db[COLLECTION_NAME]

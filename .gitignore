@@ -3,3 +3,4 @@ __pycache__/
 configs.py
 mongo_upload.py
 database_delete.py
+.streamlit/secrets.toml

@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-from configs import COLLECTION_NAME
+from configs_st import COLLECTION_NAME
 from database_init import db
 from plots import plotRawSignals, plotCleanedSignals, plotSignalsPeaks, plotSQA, plot_ppg_process, plot_beats
 

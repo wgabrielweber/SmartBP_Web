@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 import data_parser
-from configs import REQUEST_MEASURE_TOPIC, REQUEST_IR_MEASURE_TOPIC, SENSOR_SETUP_TOPIC
+from configs_st import REQUEST_MEASURE_TOPIC, REQUEST_IR_MEASURE_TOPIC, SENSOR_SETUP_TOPIC
 
 class MQTTManager:
     def __init__(self, broker_address, command_topic, data_topic):

@@ -1,8 +1,7 @@
 import streamlit as st
 import os
 import logging
-import configs
-from configs import COLLECTION_NAME
+import configs_st
 from database_init import db
 from mqtt_manager import MQTTManager
 from data_manager import convert_signals_to_lists
@@ -19,7 +18,7 @@ logging.getLogger("streamlit").setLevel(logging.ERROR)
 logging.getLogger("paho").setLevel(logging.CRITICAL)  # Suppress paho-mqtt logs
 logging.getLogger().setLevel(logging.ERROR)  # Suppress root logger warnings
 
-collection = db[COLLECTION_NAME]
+collection = db[configs_st.COLLECTION_NAME]
 
 # Set page configurations
 st.set_page_config(
@@ -37,9 +36,9 @@ def request_new_measure_button():
 # Initialize MQTTManager instance only once
 if "mqtt_instance" not in st.session_state:
     mqtt_instance = MQTTManager(
-        broker_address=configs.BROKER_ADDRESS,
-        command_topic=configs.REQUEST_IR_MEASURE_TOPIC,  # Default to IR Only
-        data_topic=configs.DATA_TOPIC,
+        broker_address=configs_st.BROKER_ADDRESS,
+        command_topic=configs_st.REQUEST_IR_MEASURE_TOPIC,  # Default to IR Only
+        data_topic=configs_st.DATA_TOPIC,
     )
     mqtt_instance.connect()
     mqtt_instance.start_loop()
