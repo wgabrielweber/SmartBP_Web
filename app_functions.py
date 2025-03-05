@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
+from configs import COLLECTION_NAME
+from database_init import db
 from plots import plotRawSignals, plotCleanedSignals, plotSignalsPeaks, plotSQA, plot_ppg_process, plot_beats
+
+collection = db[COLLECTION_NAME]
 
 def cssStyling():
     """Handles the CSS styling of the page."""
@@ -103,7 +107,7 @@ def pills_sensor_params(measures):
     # Return the measures corresponding to the selected parameter key
     selected_param_measures = measures.get(selected_param_key, {})
 
-    return selected_param_measures  # Return all measures for the selected key
+    return selected_param_measures, selected_param_key  # Return all measures for the selected key and the param key
 
 def select_box_measure(measures, measureType):
     """Function to create and handle the select box that permits the measure selection, filtered by the measureType."""  
@@ -139,33 +143,48 @@ def select_box_measure(measures, measureType):
         return filtered_measures[selected_measure_key]  # Return the selected measure
     return None  # Return None if no valid measure is selected
   
-def delete_measure_bt(sensor_params, selected_measure, measures, file_path):
-    """Function to create and handle the button that permits the deletion of a measure."""
-    # Add a button to remove the selected measure
+def delete_measure_bt(sensor_param, selected_measure, measures):
+    """Function to delete a selected measure in MongoDB."""
+
     if st.button("Delete Selected Measure"):
         if selected_measure:
-            # Remove the selected measure from the dictionary
-            updated_measures = {key: value for key, value in measures.items() if value != selected_measure}
-            
-            # Renumber the keys to maintain sequential naming
-            updated_measures = {
-                f"measure_{i + 1}": value for i, (key, value) in enumerate(updated_measures.items())
-            }
-            
-            # Save the updated measures back to the file
-            with open(file_path, "w") as file:
-                json.dump(updated_measures, file, indent=4)
+            # Find the key corresponding to the selected measure
+            measure_key_to_delete = None
+            for key, value in measures.items():
+                if value == selected_measure:
+                    measure_key_to_delete = key
+                    break
 
-            st.success("Selected measure deleted successfully!")
+            if measure_key_to_delete:
+                # Remove the selected measure
+                del measures[measure_key_to_delete]
 
-            # Clear the selected measure from session state to avoid issues
-            if "selected_measure" in st.session_state:
-                del st.session_state["selected_measure"]
+                # Renumber the remaining measures
+                updated_measures = {
+                    f"measure_{i + 1}": value for i, (_, value) in enumerate(measures.items())
+                }
 
-            # Re-trigger the app logic by setting a flag
-            st.session_state["measure_deleted"] = True
+                # Ensure sensor_param is a string and use it correctly
+                if isinstance(sensor_param, str):
+                    # Update only the specific sensor_param in MongoDB
+                    collection.update_one(
+                        {},  # Match any document (since there's only one)
+                        {"$set": {sensor_param: updated_measures}}  
+                    )
 
-            st.rerun()
+                    st.success("Selected measure deleted successfully!")
+
+                    # Clear the selected measure from session state to avoid issues
+                    if "selected_measure" in st.session_state:
+                        del st.session_state["selected_measure"]
+
+                    # Re-trigger the app logic by setting a flag
+                    st.session_state["measure_deleted"] = True
+                    st.rerun()
+                else:
+                    st.error("Invalid sensor_param. Expected a string.")
+            else:
+                st.warning("Selected measure not found in the database.")
         else:
             st.warning("No measure selected to delete.")
 
@@ -194,60 +213,78 @@ def selectPlotType(selected_measure):
             plot_buf = plot_beats(selected_measure)
     return plot_buf
 
-def pending_categorization(measures, file_path):
+def pending_categorization():
+    """
+    Displays measures that are missing a category and allows users to update them in MongoDB.
+    """
     # Initialize a list to collect rows for the table
     table_data = []
 
-    # Extract and organize measures
-    for parameter, measurements in measures.items():
-        for measure_id, measure_data in measurements.items():
-            category = measure_data.get("category", "")  # Get category or empty string
-            table_data.append({
-                "Parameter": parameter,
-                "Measure ID": measure_id,
-                "Timestamp": measure_data.get("timestamp", ""),
-                "Type": measure_data.get("measureType", ""),
-                "Frequency": measure_data.get("measureFrequency", ""),
-                "Category": category
-            })
-    
-    # Convert to a DataFrame for display
-    df = pd.DataFrame(table_data)
+    # Extract and organize measures from MongoDB (the single document)
+    doc = collection.find_one()
 
-    # Filter rows where "Category" is missing or empty
-    df_filtered = df[df["Category"].astype(str).str.strip() == ""]
+    if doc:
+        # Iterating through each sensor_param in the document
+        for sensor_param, measures in doc.items():
+            if sensor_param != "_id":  # Skip the _id field
+                for measure_id, measure_data in measures.items():
+                    category = measure_data.get("category", "")  # Get category or empty string
+                    table_data.append({
+                        "Parameter": sensor_param,
+                        "Measure ID": measure_id,
+                        "Timestamp": measure_data.get("timestamp", ""),
+                        "Type": measure_data.get("measureType", ""),
+                        "Frequency": measure_data.get("measureFrequency", ""),
+                        "Category": category
+                    })
 
-    # Show the editable table
-    with st.container():
-        col1, col2, col3 = st.columns([1, 3, 1]) 
-        with col1:
-            save_button = st.button("Save Changes")
-            if save_button:
-                st.success("Changes saved successfully!")
-            st.empty()
-        with col2:
-            edited_df = st.data_editor(df_filtered, use_container_width=True, hide_index=True)
+        # Convert to a DataFrame for display
+        df = pd.DataFrame(table_data)
 
-    # Save changes button
-    if save_button:
-        # Update the JSON file with new categories
-        for index, row in edited_df.iterrows():
-            parameter = row["Parameter"]
-            measure_id = row["Measure ID"]
-            category = row["Category"]
-            measures[parameter][measure_id]["category"] = category
-        
-        # Save the updated measures back to the JSON file
-        with open(file_path, "w") as f:
-            json.dump(measures, f, indent=4)
+        # Filter rows where "Category" is missing or empty
+        df_filtered = df[df["Category"].astype(str).str.strip() == ""]
 
-def categorization_stats(measures):
+        # Show the editable table
+        with st.container():
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col1:
+                save_button = st.button("Save Changes")
+                if save_button:
+                    st.success("Changes saved successfully!")
+                st.empty()
+            with col2:
+                # Display the table, but only the rows where Category is empty
+                edited_df = st.data_editor(df_filtered, use_container_width=True, hide_index=True)
+
+        # Save changes button
+        if save_button:
+            # Update MongoDB with new categories
+            for index, row in edited_df.iterrows():
+                sensor_param = row["Parameter"]
+                measure_id = row["Measure ID"]
+                new_category = row["Category"]
+
+                # Update the document with the new category in the correct sensor_param and measure_id
+                collection.update_one(
+                    {"_id": doc["_id"]},  # Match the single document by _id
+                    {"$set": {f"{sensor_param}.{measure_id}.category": new_category}}  # Update the category
+                )
+
+            st.success("Categories updated in MongoDB!")
+
+def categorization_stats():
     """Display statistics for categorized measures."""
+    # Load the database
+    measures = collection.find_one()
+    
     # Initialize a dictionary to count measures per category
     category_counts = {}
 
     # Loop through all measures to count categories
     for parameter, measurements in measures.items():
+        if parameter == "_id":
+            continue  # Skip the _id field
+        
         for measure_id, measure_data in measurements.items():
             category = measure_data.get("category", "").strip()
             if not category:
@@ -283,5 +320,5 @@ def categorization_stats(measures):
                 autopct="%1.1f%%",
                 startangle=140,
             )
-            ax.set_title("Categorization Distribution (Pie Chart)")
+            ax.set_title("Categorization Distribution")
             st.pyplot(fig)

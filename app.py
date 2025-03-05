@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import logging
 import configs
+from configs import COLLECTION_NAME
+from database_init import db
 from mqtt_manager import MQTTManager
 from data_manager import convert_signals_to_lists
 from data_logger import load_measures
@@ -17,7 +19,9 @@ logging.getLogger("streamlit").setLevel(logging.ERROR)
 logging.getLogger("paho").setLevel(logging.CRITICAL)  # Suppress paho-mqtt logs
 logging.getLogger().setLevel(logging.ERROR)  # Suppress root logger warnings
 
-# Set page configuration
+collection = db[COLLECTION_NAME]
+
+# Set page configurations
 st.set_page_config(
     page_title="SmartBP Web App",
     page_icon="🩺",
@@ -44,7 +48,7 @@ if "mqtt_instance" not in st.session_state:
 
 mqtt = st.session_state["mqtt_instance"]
 
-def measurement_screen(file, file_path):
+def measurement_screen(file):
     # Apply custom CSS styling on the page
     cssStyling()
 
@@ -99,13 +103,13 @@ def measurement_screen(file, file_path):
             measureType = pills_measure_type()
 
         with col2:
-            measures = pills_sensor_params(file)
+            measures, selected_param_key = pills_sensor_params(file)
 
         with col3:
             selected_measure = select_box_measure(measures, measureType)
 
         with col4:
-            delete_measure_bt(measures ,selected_measure, measures, file_path)
+            delete_measure_bt(selected_param_key, selected_measure, measures)
 
         with st.container():
             col1, col2 = st.columns([1, 6])
@@ -127,7 +131,7 @@ def measurement_screen(file, file_path):
     # Placeholder for any dynamic updates or waiting states
     st.empty()
 
-def categorization_screen(file, file_path):
+def categorization_screen():
     # Top container for header and settings
     with st.container():
         st.title("SmartBP Web App 🩺")
@@ -136,25 +140,24 @@ def categorization_screen(file, file_path):
     # Pending Categorization Section
     st.header("Pending Categorization")
     st.write("Edit the 'Category' column to categorize your measures.")
-    pending_categorization(file, file_path)
+    pending_categorization()
 
     # Categorization Statistics Section
     st.header("Categorization Statistics")
-    categorization_stats(file)
+    categorization_stats()
 
 def main():  
     
     # Load existing measures
-    file_path = configs.MEASURE_LOGGER
-    file = load_measures(file_path)
+    file = load_measures()
 
     # Add a sidebar menu for selecting the table to display
     menu_selection = st.sidebar.selectbox("Menu", ("Measures","Categorization"))
 
     if menu_selection == "Measures":
-        measurement_screen(file, file_path)
+        measurement_screen(file)
     elif menu_selection == "Categorization":
-        categorization_screen(file, file_path)
+        categorization_screen()
 
 if __name__ == "__main__":
     main()
